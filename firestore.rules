@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /houses/{houseId} {
+      // Anyone can read participating houses (public view)
+      allow read: if true;
+      
+      // Authenticated users can create houses (with ownership)
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.isAnonymousReport == false;
+      
+      // Anonymous users can create reports or increment existing reports
+      allow create: if request.auth == null
+                    && request.resource.data.isAnonymousReport == true
+                    && request.resource.data.isGivingCandy == true
+                    && request.resource.data.address is string
+                    && request.resource.data.latitude is number
+                    && request.resource.data.longitude is number
+                    && request.resource.data.reportCount >= 1
+                    && request.resource.data.lightsOn is bool
+                    && request.resource.data.halloweenDecorations is bool;
+      
+      // Anonymous users can increment report count on existing reports
+      allow update: if request.auth == null
+                    && resource.data.isAnonymousReport == true
+                    && request.resource.data.reportCount == resource.data.reportCount + 1
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'updatedAt', 'lightsOn', 'halloweenDecorations']);
+      
+      // Only the owner can update or delete their houses
+      allow update, delete: if request.auth != null 
+                            && request.auth.uid == resource.data.ownerId
+                            && resource.data.isAnonymousReport == false;
+    }
+  }
+}
